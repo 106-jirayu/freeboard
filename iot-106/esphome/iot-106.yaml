@@ -1,0 +1,132 @@
+esphome:
+  name: greenhouse-node-01
+  friendly_name: Greenhouse Node 01
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+
+wifi:
+  ssid: !secret IoT_PKRU
+  password: !secret Pkru123456
+
+captive_portal:
+
+http_request:
+  timeout: 10s
+  verify_ssl: true
+
+time:
+  - platform: sntp
+    id: sntp_time
+
+globals:
+  - id: temperature
+    type: float
+    initial_value: "28.0"
+    restore_value: false
+  - id: humidity
+    type: float
+    initial_value: "65.0"
+    restore_value: false
+  - id: co2
+    type: int
+    initial_value: "600"
+    restore_value: false
+  - id: light
+    type: int
+    initial_value: "700"
+    restore_value: false
+  - id: soil_moisture
+    type: float
+    initial_value: "55.0"
+    restore_value: false
+  - id: battery
+    type: float
+    initial_value: "4.05"
+    restore_value: false
+  - id: updated_at
+    type: int
+    initial_value: "0"
+    restore_value: false
+
+script:
+  - id: upload_sample
+    mode: queued
+    then:
+      - http_request.send:
+          method: PUT
+          url: !secret firebase_latest_url
+          request_headers:
+            Content-Type: application/json
+          json: |-
+            root["device_id"] = "greenhouse-node-01";
+            root["timestamp"] = id(updated_at);
+            root["temperature"] = id(temperature);
+            root["humidity"] = id(humidity);
+            root["co2"] = id(co2);
+            root["light"] = id(light);
+            root["soil_moisture"] = id(soil_moisture);
+            root["battery"] = id(battery);
+          on_response:
+            then:
+              - if:
+                  condition:
+                    lambda: return response->status_code >= 200 && response->status_code < 300;
+                  then:
+                    - logger.log: "Firebase latest updated"
+                  else:
+                    - logger.log:
+                        format: "Firebase latest failed: HTTP %d"
+                        args: ["response->status_code"]
+          on_error:
+            then:
+              - logger.log: "Firebase latest request failed"
+      - http_request.post:
+          url: !secret https://iot-106-default-rtdb.asia-southeast1.firebasedatabase.app/lab/esp32/latest.json
+          request_headers:
+            Content-Type: application/json
+          json: |-
+            root["device_id"] = "greenhouse-node-01";
+            root["timestamp"] = id(updated_at);
+            root["temperature"] = id(temperature);
+            root["humidity"] = id(humidity);
+            root["co2"] = id(co2);
+            root["light"] = id(light);
+            root["soil_moisture"] = id(soil_moisture);
+            root["battery"] = id(battery);
+          on_response:
+            then:
+              - if:
+                  condition:
+                    lambda: return response->status_code >= 200 && response->status_code < 300;
+                  then:
+                    - logger.log: "Firebase history appended"
+                  else:
+                    - logger.log:
+                        format: "Firebase history failed: HTTP %d"
+                        args: ["response->status_code"]
+          on_error:
+            then:
+              - logger.log: "Firebase history request failed"
+
+interval:
+  - interval: 10s
+    then:
+      - lambda: |-
+          const auto now = id(sntp_time).now();
+          if (!now.is_valid()) {
+            ESP_LOGW("firebase", "Waiting for network time before sending data");
+            return;
+          }
+          id(temperature) = 23.0f + (esp_random() % 121) / 10.0f;
+          id(humidity) = 40.0f + (esp_random() % 451) / 10.0f;
+          id(co2) = 420 + (esp_random() % 781);
+          id(light) = 100 + (esp_random() % 1401);
+          id(soil_moisture) = 15.0f + (esp_random() % 751) / 10.0f;
+          id(battery) = 3.60f + (esp_random() % 61) / 100.0f;
+          id(updated_at) = now.timestamp;
+          id(upload_sample).execute();
