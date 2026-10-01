@@ -1,217 +1,147 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IoT Real-time Sensor Dashboard - 116</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Environment Dashboard (iot-106)</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f172a; color: #f8fafc; padding: 24px; }
+    .container { max-width: 1100px; margin: 0 auto; }
+    .header { text-align: center; margin-bottom: 30px; }
+    .header h1 { font-size: 2rem; color: #38bdf8; margin-bottom: 8px; }
+    .header p { color: #94a3b8; font-size: 0.95rem; }
+
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .card { background: #1e293b; padding: 20px; border-radius: 16px; border: 1px solid #334155; text-align: center; }
+    .card h3 { font-size: 0.85rem; color: #94a3b8; text-transform: uppercase; margin-bottom: 8px; }
+    .card .value { font-size: 1.8rem; font-weight: bold; color: #f8fafc; }
+    .card .unit { font-size: 0.9rem; color: #64748b; }
+
+    .status-badge { display: inline-block; padding: 4px 12px; border-radius: 9999px; font-weight: bold; font-size: 0.9rem; margin-top: 6px; }
+    .status-normal { background: #065f46; color: #34d399; }
+    .status-warning { background: #991b1b; color: #f87171; }
+
+    .chart-card { background: #1e293b; padding: 20px; border-radius: 16px; border: 1px solid #334155; }
+    .footer-info { text-align: center; margin-top: 16px; font-size: 0.85rem; color: #64748b; }
+  </style>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen p-4 md:p-8 font-sans">
-    <div class="max-w-7xl mx-auto space-y-6">
-        
-        <!-- Header -->
-        <div class="flex flex-col md:flex-row justify-between items-center bg-slate-800/80 p-6 rounded-2xl border border-slate-700 shadow-xl">
-            <div>
-                <h1 class="text-2xl md:text-3xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
-                    <i class="fa-solid fa-microchip me-2"></i>IoT Sensor Dashboard (116)
-                </h1>
-                <p class="text-slate-400 text-sm mt-1">ระบบติดตามข้อมูลเซ็นเซอร์ Real-time (ESP32 ➔ Firebase RTDB)</p>
-            </div>
-            <div class="mt-4 md:mt-0 flex items-center gap-4">
-                <div id="status-badge" class="px-3 py-1 bg-amber-500/20 text-amber-400 rounded-full text-xs font-semibold flex items-center gap-2 border border-amber-500/30">
-                    <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
-                    <span id="status-text">CONNECTING...</span>
-                </div>
-                <div class="text-xs text-slate-400">
-                    อัปเดตล่าสุด: <span id="last-update" class="text-slate-200 font-mono">--:--:--</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- 6 KPI Sensor Cards -->
-        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            <div class="bg-slate-800 p-4 rounded-xl border border-slate-700/60 shadow-lg">
-                <div class="flex justify-between items-center text-slate-400 text-xs mb-2">
-                    <span>TEMPERATURE</span>
-                    <i class="fa-solid fa-temperature-high text-rose-400"></i>
-                </div>
-                <div id="temp" class="text-xl font-bold text-rose-400 font-mono">-- °C</div>
-            </div>
-
-            <div class="bg-slate-800 p-4 rounded-xl border border-slate-700/60 shadow-lg">
-                <div class="flex justify-between items-center text-slate-400 text-xs mb-2">
-                    <span>HUMIDITY</span>
-                    <i class="fa-solid fa-droplet text-cyan-400"></i>
-                </div>
-                <div id="humid" class="text-xl font-bold text-cyan-400 font-mono">-- %</div>
-            </div>
-
-            <div class="bg-slate-800 p-4 rounded-xl border border-slate-700/60 shadow-lg">
-                <div class="flex justify-between items-center text-slate-400 text-xs mb-2">
-                    <span>LIGHT</span>
-                    <i class="fa-solid fa-sun text-amber-400"></i>
-                </div>
-                <div id="light" class="text-xl font-bold text-amber-400 font-mono">-- lx</div>
-            </div>
-
-            <div class="bg-slate-800 p-4 rounded-xl border border-slate-700/60 shadow-lg">
-                <div class="flex justify-between items-center text-slate-400 text-xs mb-2">
-                    <span>PRESSURE</span>
-                    <i class="fa-solid fa-gauge-high text-indigo-400"></i>
-                </div>
-                <div id="pressure" class="text-xl font-bold text-indigo-400 font-mono">-- hPa</div>
-            </div>
-
-            <div class="bg-slate-800 p-4 rounded-xl border border-slate-700/60 shadow-lg">
-                <div class="flex justify-between items-center text-slate-400 text-xs mb-2">
-                    <span>CO2 LEVEL</span>
-                    <i class="fa-solid fa-cloud text-emerald-400"></i>
-                </div>
-                <div id="co2" class="text-xl font-bold text-emerald-400 font-mono">-- ppm</div>
-            </div>
-
-            <div class="bg-slate-800 p-4 rounded-xl border border-slate-700/60 shadow-lg">
-                <div class="flex justify-between items-center text-slate-400 text-xs mb-2">
-                    <span>BATTERY</span>
-                    <i class="fa-solid fa-battery-three-quarters text-blue-400"></i>
-                </div>
-                <div id="battery" class="text-xl font-bold text-blue-400 font-mono">-- %</div>
-            </div>
-        </div>
-
-        <!-- Real-time Chart -->
-        <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl">
-            <h2 class="text-lg font-semibold mb-4 text-slate-200">
-                <i class="fa-solid fa-chart-line text-cyan-400 me-2"></i>แนวโน้มข้อมูล Real-time (/history)
-            </h2>
-            <div class="h-64 md:h-80 w-full">
-                <canvas id="realtimeChart"></canvas>
-            </div>
-        </div>
-
-        <!-- History Table -->
-        <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl overflow-x-auto">
-            <h2 class="text-lg font-semibold mb-4 text-slate-200">
-                <i class="fa-solid fa-table text-indigo-400 me-2"></i>ตารางข้อมูลประวัติล่าสุด 10 รายการ
-            </h2>
-            <table class="w-full text-left text-sm text-slate-300">
-                <thead class="bg-slate-900/60 text-slate-400 text-xs uppercase">
-                    <tr>
-                        <th class="py-3 px-4">เวลา</th>
-                        <th class="py-3 px-4">Temp (°C)</th>
-                        <th class="py-3 px-4">Humid (%)</th>
-                        <th class="py-3 px-4">Light (lx)</th>
-                        <th class="py-3 px-4">Pressure (hPa)</th>
-                        <th class="py-3 px-4">CO2 (ppm)</th>
-                        <th class="py-3 px-4">Battery (%)</th>
-                    </tr>
-                </thead>
-                <tbody id="history-table-body">
-                    <tr>
-                        <td colspan="7" class="text-center py-4 text-slate-500">รอการรับข้อมูลจาก ESP32...</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Smart Environment Dashboard</h1>
+      <p>Real-time Monitoring System (Database: iot-106)</p>
     </div>
 
-    <script>
-        const firebaseConfig = {
-            databaseURL: "https://iot-116-default-rtdb.asia-southeast1.firebasedatabase.app"
-        };
+    <!-- แสดงผล 6 คอลัมน์ -->
+    <div class="cards">
+      <div class="card">
+        <h3>อุณหภูมิ</h3>
+        <div class="value" id="temp" style="color: #f87171;">--</div>
+        <div class="unit">°C</div>
+      </div>
+      <div class="card">
+        <h3>ความชื้น</h3>
+        <div class="value" id="hum" style="color: #38bdf8;">--</div>
+        <div class="unit">%</div>
+      </div>
+      <div class="card">
+        <h3>แสงสว่าง</h3>
+        <div class="value" id="light" style="color: #facc15;">--</div>
+        <div class="unit">lux</div>
+      </div>
+      <div class="card">
+        <h3>ก๊าซ CO2</h3>
+        <div class="value" id="co2" style="color: #a78bfa;">--</div>
+        <div class="unit">ppm</div>
+      </div>
+      <div class="card">
+        <h3>สถานะระบบ</h3>
+        <div id="status" class="status-badge status-normal">--</div>
+      </div>
+      <div class="card">
+        <h3>เวลาอัปเดต</h3>
+        <div class="value" id="time" style="font-size: 1rem; margin-top: 10px;">--:--:--</div>
+      </div>
+    </div>
 
-        if (!firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig);
+    <div class="chart-card">
+      <canvas id="realtimeChart" height="100"></canvas>
+    </div>
+
+    <div class="footer-info">
+      อัปเดตข้อมูลอัตโนมัติจาก Firebase Realtime Database (iot-106)
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+    // กำหนด URL ของฐานข้อมูล Region Asia Southeast
+    const firebaseConfig = {
+      databaseURL: "https://iot-106-default-rtdb.asia-southeast1.firebasedatabase.app"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    // Chart.js Setup
+    const ctx = document.getElementById('realtimeChart').getContext('2d');
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [
+          { label: 'อุณหภูมิ (°C)', borderColor: '#f87171', data: [], tension: 0.3 },
+          { label: 'ความชื้น (%)', borderColor: '#38bdf8', data: [], tension: 0.3 },
+          { label: 'ก๊าซ CO2 (ppm)', borderColor: '#a78bfa', data: [], tension: 0.3, yAxisID: 'y1' }
+        ]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          y: { type: 'linear', position: 'left', grid: { color: '#334155' } },
+          y1: { type: 'linear', position: 'right', grid: { drawOnChartArea: false } },
+          x: { grid: { color: '#334155' } }
+        },
+        plugins: { legend: { labels: { color: '#f8fafc' } } }
+      }
+    });
+
+    // ฟังค่า Realtime จาก /latest
+    onValue(ref(db, 'latest'), (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        document.getElementById('temp').innerText = data.temperature.toFixed(1);
+        document.getElementById('hum').innerText = data.humidity.toFixed(1);
+        document.getElementById('light').innerText = data.light.toFixed(0);
+        document.getElementById('co2').innerText = data.co2.toFixed(0);
+
+        const statusEl = document.getElementById('status');
+        statusEl.innerText = data.status;
+        statusEl.className = 'status-badge ' + (data.status === 'Normal' ? 'status-normal' : 'status-warning');
+
+        if (data.timestamp) {
+          const d = new Date(data.timestamp);
+          document.getElementById('time').innerText = d.toLocaleTimeString();
         }
-        const db = firebase.database();
+      }
+    });
 
-        const ctx = document.getElementById('realtimeChart').getContext('2d');
-        const realtimeChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: [],
-                datasets: [
-                    { label: 'Temperature (°C)', data: [], borderColor: '#f43f5e', backgroundColor: 'rgba(244, 63, 94, 0.1)', fill: true, tension: 0.3 },
-                    { label: 'Humidity (%)', data: [], borderColor: '#06b6d4', backgroundColor: 'rgba(6, 182, 212, 0.1)', fill: true, tension: 0.3 }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    x: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
-                    y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } }
-                },
-                plugins: { legend: { labels: { color: '#e2e8f0' } } }
-            }
-        });
-
-        // ดึงค่าล่าสุด /latest
-        db.ref('latest').on('value', (snapshot) => {
-            const data = snapshot.val();
-            if (data) {
-                document.getElementById('temp').innerText = data.temperature ? data.temperature.toFixed(1) + ' °C' : '--';
-                document.getElementById('humid').innerText = data.humidity ? data.humidity.toFixed(1) + ' %' : '--';
-                document.getElementById('light').innerText = data.light ? data.light.toFixed(0) + ' lx' : '--';
-                document.getElementById('pressure').innerText = data.pressure ? data.pressure.toFixed(1) + ' hPa' : '--';
-                document.getElementById('co2').innerText = data.co2 ? data.co2.toFixed(0) + ' ppm' : '--';
-                document.getElementById('battery').innerText = data.battery ? data.battery.toFixed(0) + ' %' : '--';
-                
-                document.getElementById('last-update').innerText = new Date().toLocaleTimeString('th-TH');
-                document.getElementById('status-badge').className = "px-3 py-1 bg-emerald-500/20 text-emerald-400 rounded-full text-xs font-semibold flex items-center gap-2 border border-emerald-500/30";
-                document.getElementById('status-text').innerText = "ONLINE (REALTIME)";
-            }
-        });
-
-        // ดึงประวัติ /history
-        db.ref('history').limitToLast(10).on('value', (snapshot) => {
-            const data = snapshot.val();
-            if (data) {
-                const labels = [];
-                const tempValues = [];
-                const humidValues = [];
-                const tableBody = document.getElementById('history-table-body');
-                tableBody.innerHTML = '';
-
-                const keys = Object.keys(data);
-                
-                [...keys].reverse().forEach((key) => {
-                    const item = data[key];
-                    const timeStr = item.timestamp ? new Date(item.timestamp * 1000).toLocaleTimeString('th-TH') : new Date().toLocaleTimeString('th-TH');
-                    
-                    const row = `
-                        <tr class="border-b border-slate-700/50 hover:bg-slate-700/30">
-                            <td class="py-2.5 px-4 font-mono text-xs text-slate-400">${timeStr}</td>
-                            <td class="py-2.5 px-4 text-rose-400 font-semibold">${item.temperature ? item.temperature.toFixed(1) : '--'}</td>
-                            <td class="py-2.5 px-4 text-cyan-400 font-semibold">${item.humidity ? item.humidity.toFixed(1) : '--'}</td>
-                            <td class="py-2.5 px-4 text-amber-400">${item.light ? item.light.toFixed(0) : '--'}</td>
-                            <td class="py-2.5 px-4 text-indigo-400">${item.pressure ? item.pressure.toFixed(1) : '--'}</td>
-                            <td class="py-2.5 px-4 text-emerald-400">${item.co2 ? item.co2.toFixed(0) : '--'}</td>
-                            <td class="py-2.5 px-4 text-blue-400">${item.battery ? item.battery.toFixed(0) : '--'}</td>
-                        </tr>
-                    `;
-                    tableBody.insertAdjacentHTML('beforeend', row);
-                });
-
-                keys.forEach((key) => {
-                    const item = data[key];
-                    const timeStr = item.timestamp ? new Date(item.timestamp * 1000).toLocaleTimeString('th-TH') : '';
-                    labels.push(timeStr);
-                    tempValues.push(item.temperature);
-                    humidValues.push(item.humidity);
-                });
-
-                realtimeChart.data.labels = labels;
-                realtimeChart.data.datasets[0].data = tempValues;
-                realtimeChart.data.datasets[1].data = humidValues;
-                realtimeChart.update();
-            }
-        });
-    </script>
+    // ฟังค่า Realtime จาก /history แสดงกราฟ 15 ค่าล่าสุด
+    onValue(ref(db, 'history'), (snapshot) => {
+      const historyData = snapshot.val();
+      if (historyData) {
+        const items = Object.values(historyData).slice(-15);
+        chart.data.labels = items.map(item => new Date(item.timestamp).toLocaleTimeString());
+        chart.data.datasets[0].data = items.map(item => item.temperature);
+        chart.data.datasets[1].data = items.map(item => item.humidity);
+        chart.data.datasets[2].data = items.map(item => item.co2);
+        chart.update();
+      }
+    });
+  </script>
 </body>
 </html>
