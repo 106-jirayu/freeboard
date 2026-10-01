@@ -1,0 +1,75 @@
+esphome:
+  name: esp32-iot-sim
+
+esp32:
+  board: esp32dev
+
+wifi:
+  ssid: "IoT_PKRU"
+  password: "Pkru123456"
+
+# สร้างเซ็นเซอร์จำลอง (สุ่มค่า)
+sensor:
+  - platform: template
+    name: "Temperature"
+    id: temp_sensor
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    update_interval: 5s
+    lambda: return 20.0 + (float)rand() / ((float)RAND_MAX / (35.0 - 20.0));
+
+  - platform: template
+    name: "Humidity"
+    id: hum_sensor
+    unit_of_measurement: "%"
+    accuracy_decimals: 1
+    update_interval: 5s
+    lambda: return 40.0 + (float)rand() / ((float)RAND_MAX / (80.0 - 40.0));
+
+  - platform: template
+    name: "Light"
+    id: light_sensor
+    unit_of_measurement: "lux"
+    accuracy_decimals: 0
+    update_interval: 5s
+    lambda: return 100.0 + (float)rand() / ((float)RAND_MAX / (900.0 - 100.0));
+
+  - platform: template
+    name: "CO2"
+    id: co2_sensor
+    unit_of_measurement: "ppm"
+    accuracy_decimals: 0
+    update_interval: 5s
+    lambda: return 400.0 + (float)rand() / ((float)RAND_MAX / (1200.0 - 400.0));
+
+http_request:
+  id: firebase_req
+
+# สุ่มข้อมูลและส่งเข้า Firebase 2 path (latest และ history)
+interval:
+  - interval: 5s
+    then:
+      - lambda: |-
+          float temp = id(temp_sensor).state;
+          float hum = id(hum_sensor).state;
+          float light = id(light_sensor).state;
+          float co2 = id(co2_sensor).state;
+          std::string status = (temp > 30.0) ? "Warning" : "Normal";
+
+          // ข้อมูล 6 คอลัมน์: temperature, humidity, light, co2, status, timestamp
+          std::string payload = "{"
+            "\"temperature\":" + to_string(temp) + ","
+            "\"humidity\":" + to_string(hum) + ","
+            "\"light\":" + to_string(light) + ","
+            "\"co2\":" + to_string(co2) + ","
+            "\"status\":\"" + status + "\","
+            "\"timestamp\":{\".sv\":\"timestamp\"}"
+            "}";
+
+          // 1. อัปเดตข้อมูลล่าสุดที่ /latest.json
+          std::string latest_url = "https://iot-XXX-default-rtdb.firebaseio.com/latest.json"; // เปลี่ยน XXX เป็นรหัส นศ.
+          id(firebase_req).send_json(latest_url, "PUT", payload);
+
+          // 2. เพิ่มประวัติลงที่ /history.json
+          std::string history_url = "https://iot-XXX-default-rtdb.firebaseio.com/history.json"; // เปลี่ยน XXX เป็นรหัส นศ.
+          id(firebase_req).send_json(history_url, "POST", payload);
